@@ -1,0 +1,4 @@
+../Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_msp_template.c:67:6:HAL_MspInit	4	static
+../Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_msp_template.c:76:6:HAL_MspDeInit	4	static
+../Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_msp_template.c:85:6:HAL_PPP_MspInit	4	static
+../Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_msp_template.c:94:6:HAL_PPP_MspDeInit	4	static
