@@ -1,105 +1,359 @@
-#include <SPI.h>
-#include <nRF24L01.h>
-#include <RF24.h>
 
-RF24 radio(7, 8); // CE, CSN
-//nRF uses 7 8 11 12 13
-#define UP_PIN 10
-#define STOP_PIN 4 //done
+#include <esp_now.h>
+#include <WiFi.h>
+#include <esp_wifi.h>
+
+//TO DO: 
+/*
+- https://docs.espressif.com/projects/esp-idf/en/latest/esp32c3/api-reference/peripherals/gpio.html
+Pins 0 to 5 can be used to wake it from deep sleep
+- mac address hardcode
+- pairing mode 
+- optimize sleep states to save energy during operation 
+- only send when there's a change in the state
+- regular handshake to confirm connection & stop vehicle if disconnected 
+- update voltage method
+- maybe research other wifi modes of esp to increase range
+*/
+/*
+
+<< This Device Master >>
+Flow: Master
+Step 1 : ESPNow Init on Master and set it in STA mode
+Step 2 : Start scanning for Slave ESP32 (we have added a prefix of `slave` to the SSID of slave for an easy setup)
+Step 3 : Once found, add Slave as peer
+Step 4 : Register for send callback
+Step 5 : Start Transmitting data from Master to Slave
+
+Flow: Slave
+Step 1 : ESPNow Init on Slave
+Step 2 : Update the SSID of Slave with a prefix of `slave`
+Step 3 : Set Slave in AP mode
+Step 4 : Register for receive callback and wait for data
+Step 5 : Once data arrives, print it in the serial monitor
+
+Note: Master and Slave have been defined to easily understand the setup.
+Based on the ESPNOW API, there is no concept of Master and Slave.
+Any devices can act as master or slave.
+*/
+
+#define UP_PIN 21
+#define STOP_PIN 8
 #define LEFT_PIN 9
-#define RIGHT_PIN A3
-#define DOWN_PIN 2
-#define BAT_MONITOR_PIN A6
+#define RIGHT_PIN 7
+#define DOWN_PIN 20
+#define BAT_MONITOR_PIN A2
 
-#define LED_LOW_PIN 3
-#define LED_MED_PIN 5
-#define LED_HIGH_PIN 6
 
-const byte address[6] = "00001";
+#define CHANNEL 1
+#define PRINTSCANRESULTS 0
+#define DELETEBEFOREPAIR 0
 
+// Variable to store if sending data was successful
+float cartBatteryVoltage;
+
+typedef struct transmitter_message{
+  int16_t forward_speed;
+  int16_t turn_speed;
+  int16_t remoteBatteryVoltage;
+} transmitter_message;
+
+typedef struct incoming_message{
+  int16_t cartBatteryVoltage;
+} incoming_message;
+
+transmitter_message outgoingMessage;
+incoming_message incomingMessage;
+
+// Global copy of slave
+esp_now_peer_info_t slave;
+
+// // Callback when data is sent
+// void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
+//   Serial.print("\r\nLast Packet Send Status:\t");
+//   Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
+//   if (status ==0)    success = "Delivery Success :)";
+//   else    success = "Delivery Fail :(";
+// }
+
+// callback when data is sent from Master to Slave
+void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
+  char macStr[18];
+  snprintf(macStr, sizeof(macStr), "%02x:%02x:%02x:%02x:%02x:%02x",
+           mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
+  Serial.print("Last Packet Sent to: "); Serial.println(macStr);
+  Serial.print("Last Packet Send Status: "); Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
+}
+
+// Callback when data is received
+void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
+  memcpy(&incomingMessage, incomingData, sizeof(incomingMessage));
+  Serial.print("Bytes received: ");
+  Serial.println(len);
+  cartBatteryVoltage = incomingMessage.cartBatteryVoltage;
+}
+
+void InitESPNow() {
+  WiFi.disconnect();
+  if (esp_now_init() == ESP_OK) {
+    Serial.println("ESPNow Init Success");
+  }
+  else {
+    Serial.println("ESPNow Init Failed");
+    // Retry InitESPNow, add a counte and then restart?
+    // InitESPNow();
+    // or Simply Restart
+    ESP.restart();
+  }
+}
+
+
+// Scan for slaves in AP mode
+void ScanForSlave() {
+  int16_t scanResults = WiFi.scanNetworks(false, false, false, 300, CHANNEL); // Scan only on one channel
+  // reset on each scan
+  bool slaveFound = 0;
+  memset(&slave, 0, sizeof(slave));
+
+  Serial.println("");
+  if (scanResults == 0) {
+    Serial.println("No WiFi devices in AP Mode found");
+  } else {
+    Serial.print("Found "); Serial.print(scanResults); Serial.println(" devices ");
+    for (int i = 0; i < scanResults; ++i) {
+      // Print SSID and RSSI for each device found
+      String SSID = WiFi.SSID(i);
+      int32_t RSSI = WiFi.RSSI(i);
+      String BSSIDstr = WiFi.BSSIDstr(i);
+
+      if (PRINTSCANRESULTS) {
+        Serial.print(i + 1);
+        Serial.print(": ");
+        Serial.print(SSID);
+        Serial.print(" (");
+        Serial.print(RSSI);
+        Serial.print(")");
+        Serial.println("");
+      }
+      delay(10);
+      // Check if the current device starts with `Slave`
+      if (SSID.indexOf("Golf_Cart") == 0) {
+        // SSID of interest
+        Serial.println("Found a Slave.");
+        Serial.print(i + 1); Serial.print(": "); Serial.print(SSID); Serial.print(" ["); Serial.print(BSSIDstr); Serial.print("]"); Serial.print(" ("); Serial.print(RSSI); Serial.print(")"); Serial.println("");
+        // Get BSSID => Mac Address of the Slave
+        int mac[6];
+        if ( 6 == sscanf(BSSIDstr.c_str(), "%x:%x:%x:%x:%x:%x",  &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5] ) ) {
+          for (int ii = 0; ii < 6; ++ii ) {
+            slave.peer_addr[ii] = (uint8_t) mac[ii];
+          }
+        }
+
+        slave.channel = CHANNEL; // pick a channel
+        slave.encrypt = 0; // no encryption
+
+        slaveFound = 1;
+        // we are planning to have only one slave in this example;
+        // Hence, break after we find one, to be a bit efficient
+        break;
+      }
+    }
+  }
+
+  if (slaveFound) {
+    Serial.println("Slave Found, processing..");
+  } else {
+    Serial.println("Slave Not Found, trying again.");
+  }
+
+  // clean up ram
+  WiFi.scanDelete();
+}
+
+
+// Check if the slave is already paired with the master.
+// If not, pair the slave with master
+bool manageSlave() {
+  if (slave.channel == CHANNEL) {
+    if (DELETEBEFOREPAIR) {
+      deletePeer();
+    }
+
+    Serial.print("Slave Status: ");
+    // check if the peer exists
+    bool exists = esp_now_is_peer_exist(slave.peer_addr);
+    if (exists) {
+      // Slave already paired.
+      Serial.println("Already Paired");
+      return true;
+    } else {
+      // Slave not paired, attempt pair
+      esp_err_t addStatus = esp_now_add_peer(&slave);
+      if (addStatus == ESP_OK) {
+        // Pair success
+        Serial.println("Pair success");
+        return true;
+      } else if (addStatus == ESP_ERR_ESPNOW_NOT_INIT) {
+        // How did we get so far!!
+        Serial.println("ESPNOW Not Init");
+        return false;
+      } else if (addStatus == ESP_ERR_ESPNOW_ARG) {
+        Serial.println("Invalid Argument");
+        return false;
+      } else if (addStatus == ESP_ERR_ESPNOW_FULL) {
+        Serial.println("Peer list full");
+        return false;
+      } else if (addStatus == ESP_ERR_ESPNOW_NO_MEM) {
+        Serial.println("Out of memory");
+        return false;
+      } else if (addStatus == ESP_ERR_ESPNOW_EXIST) {
+        Serial.println("Peer Exists");
+        return true;
+      } else {
+        Serial.println("Not sure what happened");
+        return false;
+      }
+    }
+  } else {
+    // No slave found to process
+    Serial.println("No Slave found to process");
+    return false;
+  }
+}
+
+void deletePeer() {
+  esp_err_t delStatus = esp_now_del_peer(slave.peer_addr);
+  Serial.print("Slave Delete Status: ");
+  if (delStatus == ESP_OK) {
+    // Delete success
+    Serial.println("Success");
+  } else if (delStatus == ESP_ERR_ESPNOW_NOT_INIT) {
+    // How did we get so far!!
+    Serial.println("ESPNOW Not Init");
+  } else if (delStatus == ESP_ERR_ESPNOW_ARG) {
+    Serial.println("Invalid Argument");
+  } else if (delStatus == ESP_ERR_ESPNOW_NOT_FOUND) {
+    Serial.println("Peer not found.");
+  } else {
+    Serial.println("Not sure what happened");
+  }
+}
+
+void sendData() {
+  const uint8_t *peer_addr = slave.peer_addr;
+  // Serial.print("Sending: "); Serial.println(outgoingMessage);
+  esp_err_t result = esp_now_send(peer_addr,(uint8_t *) &outgoingMessage, sizeof(outgoingMessage));
+  Serial.print("Send Status: ");
+  if (result == ESP_OK) {
+    Serial.println("Success");
+  } else if (result == ESP_ERR_ESPNOW_NOT_INIT) {
+    // How did we get so far!!
+    Serial.println("ESPNOW not Init.");
+  } else if (result == ESP_ERR_ESPNOW_ARG) {
+    Serial.println("Invalid Argument");
+  } else if (result == ESP_ERR_ESPNOW_INTERNAL) {
+    Serial.println("Internal Error");
+  } else if (result == ESP_ERR_ESPNOW_NO_MEM) {
+    Serial.println("ESP_ERR_ESPNOW_NO_MEM");
+  } else if (result == ESP_ERR_ESPNOW_NOT_FOUND) {
+    Serial.println("Peer not found.");
+  } else {
+    Serial.println("Not sure what happened");
+  }
+}
 
 void setup() {
   pinMode(UP_PIN, INPUT_PULLUP); pinMode(STOP_PIN, INPUT_PULLUP); pinMode(LEFT_PIN, INPUT_PULLUP);
   pinMode(RIGHT_PIN, INPUT_PULLUP); pinMode(DOWN_PIN, INPUT_PULLUP);
 
   pinMode(BAT_MONITOR_PIN, INPUT);
-  
-  pinMode(LED_LOW_PIN, OUTPUT); pinMode(LED_MED_PIN, OUTPUT); pinMode(LED_HIGH_PIN, OUTPUT);
 
   Serial.begin(115200);
-  radio.begin();
-  radio.openWritingPipe(address);
-  radio.setPALevel(RF24_PA_MAX);
-  radio.stopListening();
+
+  WiFi.mode(WIFI_STA);
+  esp_wifi_set_channel(CHANNEL, WIFI_SECOND_CHAN_NONE);
+  Serial.println("ESPNow/Basic/Master Example");
+  // This is the mac address of the Master in Station Mode
+  Serial.print("STA MAC: "); Serial.println(WiFi.macAddress());
+  Serial.print("STA CHANNEL "); Serial.println(WiFi.channel());
+  // Init ESPNow with a fallback logic
+  InitESPNow();
+  // Once ESPNow is successfully Init, we will register for Send CB to
+  // get the status of Trasnmitted packet
+  esp_now_register_send_cb(OnDataSent);
+  esp_now_register_recv_cb(OnDataRecv);  
+
+  bool isPaired = false;
+  do{
+    ScanForSlave();
+    // If Slave is found, it would be populate in `slave` variable
+    // We will check if `slave` is defined and then we proceed further
+    if(slave.channel == CHANNEL){
+      isPaired = manageSlave();
+    }
+    Serial.println("Searching...");
+    delay(50);
+  }while(!isPaired);
 }
 
 
-void speedLedHandler(int speedLevel){
-  int positiveSpeedLevel = max(0, speedLevel);
-
-  if(speedLevel >= 7){
-    analogWrite(LED_LOW_PIN, 255);
-    analogWrite(LED_MED_PIN, 255);
-    analogWrite(LED_HIGH_PIN, (speedLevel - 6) * 80);
-  }
-  else if(speedLevel >= 4){
-    analogWrite(LED_LOW_PIN, 255);
-    analogWrite(LED_MED_PIN, (speedLevel - 3) * 80);
-    analogWrite(LED_HIGH_PIN, 0);
-  }
-  else if(speedLevel >= 0){
-    analogWrite(LED_LOW_PIN, speedLevel * 80);
-    digitalWrite(LED_MED_PIN, 0); digitalWrite(LED_HIGH_PIN, 0);
-    
-  }
-  else{
-    digitalWrite(LED_LOW_PIN, (millis() % 500 < 250));
-    digitalWrite(LED_MED_PIN, (millis() % 500 < 250)); 
-    digitalWrite(LED_HIGH_PIN, (millis() % 500 < 250));
-  }
-}
-
-float batteryMonitor(){
+void batteryMonitor(){
   //with 1:1 voltage divider, 4.2V should be 2.1V --> 1023 * (2.1V / 3.3V) = 651 
   //to go from ticks to V, 651 --> 4.2V, 0 --> 0V
-  float batteryOffset = 651; //calibrate later (detect ticks at 4.2V)
+  float batteryOffset = 290; //calibrate later (detect ticks at 4.2V)
   float ticksToVoltage = 4.2/batteryOffset;
 
-  return analogRead(BAT_MONITOR_PIN) * ticksToVoltage;
+  outgoingMessage.remoteBatteryVoltage = analogRead(BAT_MONITOR_PIN) * ticksToVoltage;
 }
 
 int speedLevel = 0; // -3 to 9 speed level, with [INSERT SOMETHING] being freespinning wheel (CODE THIS IN)
 //first forward from standing start will increase it to level 4, with subsequent increments being 1
 int turnSpeed = 0; // positive for right, negative for left
 void loop() {
-  bool changed = remoteSpeedHandler();
-  speedLedHandler(speedLevel);
+  bool changed = updateButtonPressState();
   
+  //make sure it connects back when it disconnects 
+
   // 600 max? thus actual speed will be 9 * 65 = 585 RPM ~~ 20 kph
   // turn speed can be like 100?
-  float batteryVoltage = batteryMonitor();
-  int forwardSpeed = speedLevel * 20;
-  int steerSpeed = turnSpeed /10;
+  batteryMonitor();
 //
-  Serial.print("Forward: ");
-  Serial.print(forwardSpeed);
-  Serial.print("  Steer: ");
-  Serial.print(steerSpeed);
-  Serial.print("  Battery V: ");
-  Serial.println(batteryVoltage);
+  // Serial.print("Forward: ");
+  // Serial.print(forwardSpeed);
+  // Serial.print("  Steer: ");
+  // Serial.println(steerSpeed);
+  // Serial.print("  Battery V: ");
+  // Serial.println(batteryVoltage);
 
   
-  
-  int message[4] = {forwardSpeed, steerSpeed, batteryVoltage * 100, 0};
+  // int message[4] = {forwardSpeed, steerSpeed, batteryVoltage * 100, 0};
 
-  if(changed || millis() % 250 < 30) radio.write(&message, sizeof(message));
+   // Send message via ESP-NOW
+  // esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &outgoingMessage, sizeof(outgoingMessage));
+  
+  // if (result == ESP_OK) {
+  //   Serial.println("Sent with success");
+  // }
+  // else {
+  //   Serial.println("Error sending the data");
+  // }    
+
+  // if(changed || millis() % 250 < 30) radio.write(&message, sizeof(message));
   //change later -- I think changed logic doesn't wokr properly
   //send update every 250 ms as well to ensure connection
+
+ 
+
+  sendData();
+  delay(5);
+
+  // wait for 3seconds to run the logic again
+  // delay(3000);
 }
 
 
-bool pressed = false;
-bool remoteSpeedHandler() {
+bool pressed = false;  
+bool updateButtonPressState(){
   bool stop_pin = !digitalRead(STOP_PIN);
   bool up = !digitalRead(UP_PIN);
   bool down = !digitalRead(DOWN_PIN);
@@ -147,5 +401,11 @@ bool remoteSpeedHandler() {
 
 //  Serial.println(pressed);
 //  Serial.println(changed);
+
+  // int forwardSpeed = speedLevel * 20;
+  // int steerSpeed = turnSpeed /10;
+  outgoingMessage.forward_speed = speedLevel * 20;
+  outgoingMessage.turn_speed = turnSpeed / 10;
+
   return changed;
-}\
+}
