@@ -21,6 +21,18 @@ Any devices can act as master or salve.
 */
 
 
+void OnDataRecv(const uint8_t *mac_addr, const uint8_t *data, int data_len) {
+  memcpy(&incomingMessage, data, sizeof(incomingMessage));
+  //print the mac address of sender
+  // char macStr[18];
+  // snprintf(macStr, sizeof(macStr), "%02x:%02x:%02x:%02x:%02x:%02x",
+  //          mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
+  // Serial.print("Last Packet Recv from: "); Serial.println(macStr);
+  Serial.print("Forward: "); Serial.print((int) incomingMessage.forward_speed);
+  Serial.print(" Turn: "); Serial.print((int) incomingMessage.turn_speed);
+  Serial.print(" BatteryVoltage: "); Serial.println((int) incomingMessage.remoteBatteryVoltage);
+  digitalWrite(LED_BUILTIN, LOW);
+}
 
 
 void espNowSetup(){
@@ -63,15 +75,3 @@ void configDeviceAP() {
   }
 }
 
-void OnDataRecv(const uint8_t *mac_addr, const uint8_t *data, int data_len) {
-  memcpy(&incomingMessage, data, sizeof(incomingMessage));
-  //print the mac address of sender
-  // char macStr[18];
-  // snprintf(macStr, sizeof(macStr), "%02x:%02x:%02x:%02x:%02x:%02x",
-  //          mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
-  // Serial.print("Last Packet Recv from: "); Serial.println(macStr);
-  Serial.print("Forward: "); Serial.print((int) incomingMessage.forward_speed);
-  Serial.print(" Turn: "); Serial.print((int) incomingMessage.turn_speed);
-  Serial.print(" BatteryVoltage: "); Serial.println((int) incomingMessage.remoteBatteryVoltage);
-  digitalWrite(LED_BUILTIN, LOW);
-}

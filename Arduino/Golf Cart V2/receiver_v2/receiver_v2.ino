@@ -18,7 +18,7 @@ typedef struct outgoing_message{
 incoming_message incomingMessage;
 outgoing_message outgoingMessage;
 
-#define LED_BUILTIN 8 //flashes every 2 seconds
+// #define LED_BUILTIN 21 //flashes every 2 seconds
 
 void setup() 
 {
@@ -26,7 +26,7 @@ void setup()
   HoverSerial.begin(HOVER_SERIAL_BAUD, SERIAL_8N1, 2, 3);
 
   pinMode(LED_BUILTIN, OUTPUT);
-
+  initScreen();
   espNowSetup();
 }
 
@@ -55,8 +55,10 @@ void loop(void)
   SendHoverboard(incomingMessage.turn_speed, forward);
 
   Serial.println(forward);
+  Serial.println(incomingMessage.turn_speed);
+
+  displayInfo();
 
   // Blink the LED
-  digitalWrite(LED_BUILTIN, HIGH);
-  // digitalWrite(LED_BUILTIN, (timeNow%1000)<1000);
+  digitalWrite(LED_BUILTIN, (timeNow%1000)<1000);
 }
