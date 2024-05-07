@@ -34,5 +34,4 @@ void displayInfo(){
     screen.setTextSize(4);
     // screen.setTextColor(ST77XX_RED, ST77XX_BLACK);
     screen.print("HELLO");
-    delay(100);
 }
