@@ -43,6 +43,7 @@ Any devices can act as master or slave.
 #define LEFT_PIN D2
 #define RIGHT_PIN D5
 #define DOWN_PIN D4
+
 // #define BAT_MONITOR_PIN A2
 
 
@@ -407,9 +408,9 @@ void enterDeepSleep(){
   // Serial.println("Going to sleep now");
 
   digitalWrite((gpio_num_t) STOP_PIN, HIGH);
-  gpio_hold_en((gpio_num_t) STOP_PIN);
+  // gpio_hold_en((gpio_num_t) STOP_PIN);
   digitalWrite((gpio_num_t) UP_PIN, HIGH);
-  gpio_hold_en((gpio_num_t) UP_PIN);
+  // gpio_hold_en((gpio_num_t) UP_PIN);
   esp_deep_sleep_start();
 }
 
@@ -433,7 +434,7 @@ bool updateButtonPressState() {
   } else if (up && !pressed) {
     pressed = true;
     if (speedLevel == 0) speedLevel = 4;
-    else speedLevel = min(9, speedLevel + 1);
+    else speedLevel = min(50, speedLevel + 1);
   } else if (down && !pressed) {
     pressed = true;
     speedLevel = max(-3, speedLevel - 1);
@@ -462,7 +463,7 @@ bool updateButtonPressState() {
   lastSpeedLevel = speedLevel;
   lastTurnLevel = turnSpeed;
 
-  outgoingMessage.forward_speed = speedLevel * 20;
+  outgoingMessage.forward_speed = speedLevel * 25;
   outgoingMessage.turn_speed = turnSpeed / 10;
 
   return changed;
