@@ -1,6 +1,9 @@
+
 #include <esp_now.h>
 #include <WiFi.h>
 #include <esp_wifi.h>
+
+#include "driver/rtc_io.h"
 
 //TO DO:
 /*
@@ -37,26 +40,25 @@ Based on the ESPNOW API, there is no concept of Master and Slave.
 Any devices can act as master or slave.
 */
 
-#define UP_PIN 11
-#define STOP_PIN 10
-#define LEFT_PIN 12
-#define RIGHT_PIN 8
-#define DOWN_PIN 9
-#define BAT_MONITOR_PIN 1
+#define UP_PIN D0
+#define STOP_PIN D1
+#define LEFT_PIN D2
+#define RIGHT_PIN D5
+#define DOWN_PIN D4
 
-// #define UP_PIN D0
-// #define STOP_PIN D1
-// #define LEFT_PIN D2
-// #define RIGHT_PIN D5
-// #define DOWN_PIN D4
-
+// #define BAT_MONITOR_PIN A2
 
 //deep sleep
-// #define BUTTON_PIN_BITMASK(GPIO) (1ULL << GPIO)  // 2 ^ GPIO_NUMBER in hex
+#define BUTTON_PIN_BITMASK(GPIO) (1ULL << GPIO)  // 2 ^ GPIO_NUMBER in hex
 // gpio_num_t wakeup_pins[] = {GPIO_NUM_8, GPIO_NUM_9, GPIO_NUM_10, GPIO_NUM_11, GPIO_NUM_12};
-// RTC_DATA_ATTR int bootCount = 0;
+gpio_num_t wakeup_pins[] = {gpio_num_t(UP_PIN), gpio_num_t(STOP_PIN), gpio_num_t(LEFT_PIN), gpio_num_t(RIGHT_PIN), gpio_num_t(DOWN_PIN)};
+RTC_DATA_ATTR int bootCount = 0;
 
+#define CHANNEL 1
+#define PRINTSCANRESULTS 0
+#define DELETEBEFOREPAIR 0
 
+// Variable to store if sending data was successful
 float cartBatteryVoltage;
 
 typedef struct transmitter_message {
@@ -74,19 +76,17 @@ incoming_message incomingMessage;
 
 //ESP NOW
 uint8_t espNowBroadcastAddress[] = { 0x74, 0x4d, 0xbd, 0x81, 0xba, 0xd4 };
-// 74:4d:bd:81:ba:d4
+
 // Create peer interface
 esp_now_peer_info_t peerInfo;
 
 // callback when data is sent from Master to Slave
 void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
-  char macStr[18];
-  snprintf(macStr, sizeof(macStr), "%02x:%02x:%02x:%02x:%02x:%02x",
-           mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
-  // Serial.print("Last Packet Sent to: ");
-  // Serial.println(macStr);
-  // Serial.print("Last Packet Send Status: ");
-  // Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
+  // char macStr[18];
+  // snprintf(macStr, sizeof(macStr), "%02x:%02x:%02x:%02x:%02x:%02x",
+  //          mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
+  // Serial.print("Last Packet Sent to: "); Serial.println(macStr);
+  // Serial.print("Last Packet Send Status: "); Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
 }
 
 // Callback when data is received
@@ -110,71 +110,52 @@ void InitESPNow() {
 
 void sendData() {
   const uint8_t *peer_addr = peerInfo.peer_addr;
-  Serial.print("steer angle: "); Serial.println(outgoingMessage.steer_angle);
-  Serial.print("forward speed: "); Serial.println(outgoingMessage.forward_speed);
+  // Serial.print("Sending: "); Serial.println(outgoingMessage);
   esp_err_t result = esp_now_send(peer_addr, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage));
+  // Serial.print(millis());
+  // Serial.print("\t");
+  // Serial.print("Send Status: ");
+  digitalWrite(LED_BUILTIN, LOW);
+    Serial.print("steer angle: "); Serial.println(outgoingMessage.steer_angle);
+  Serial.print("forward speed: "); Serial.println(outgoingMessage.forward_speed);
   Serial.print(millis());
   Serial.print("\tSend Status: ");
 
-
+  // Serial.println(outgoingMessage.forward_speed);
+  // Serial.println(outgoingMessage.turn_speed);
   if (result == ESP_OK) {
-    Serial.println("Success");
+    // Serial.println("Success");
   } else if (result == ESP_ERR_ESPNOW_NOT_INIT) {
     // How did we get so far!!
-    Serial.println("ESPNOW not Init.");
+    // Serial.println("ESPNOW not Init.");
   } else if (result == ESP_ERR_ESPNOW_ARG) {
-    Serial.println("Invalid Argument");
+    // Serial.println("Invalid Argument");
   } else if (result == ESP_ERR_ESPNOW_INTERNAL) {
-    Serial.println("Internal Error");
+    // Serial.println("Internal Error");
   } else if (result == ESP_ERR_ESPNOW_NO_MEM) {
-    Serial.println("ESP_ERR_ESPNOW_NO_MEM");
+    // Serial.println("ESP_ERR_ESPNOW_NO_MEM");
   } else if (result == ESP_ERR_ESPNOW_NOT_FOUND) {
-    Serial.println("Peer not found.");
+    // Serial.println("Peer not found.");
   } else {
-    Serial.println("Not sure what happened");
-  }
-
-  // neopixelWrite(LED_BUILTIN, 0, 10, 0);  // Off / black
-  // RGB_BUILTIN
-  // Serial.println(outgoingMessage.forward_speed);
-  // Serial.println(outgoingMessage.steer_angle);
+    // Serial.println("Not sure what happened");
+  } 
+  
 }
-
-int lastEventTime;
-int lastSentTime;
+int lastEventTime; int lastSentTime;
 void setup() {
   pinMode(UP_PIN, INPUT_PULLUP);
   pinMode(STOP_PIN, INPUT_PULLUP);
   pinMode(LEFT_PIN, INPUT_PULLUP);
   pinMode(RIGHT_PIN, INPUT_PULLUP);
   pinMode(DOWN_PIN, INPUT_PULLUP);
+  pinMode(LED_BUILTIN, OUTPUT);
 
   // pinMode(BAT_MONITOR_PIN, INPUT);
 
   Serial.begin(115200);
 
-  //deep sleep wake
-  // ++bootCount;
-  // Serial.println("Boot number: " + String(bootCount));
-  //Print the wakeup reason for ESP32
-  // print_wakeup_reason();
 
-  //If you were to use ext1, you would use it like
-  // uint64_t bitmask = 0;
-  // for(int i = 0; i < sizeof(wakeup_pins) / sizeof(wakeup_pins[0]); i++){
-  //   bitmask = bitmask | BUTTON_PIN_BITMASK(wakeup_pins[i]);
-  //   rtc_gpio_pullup_en(wakeup_pins[i]); 
-  //   rtc_gpio_pulldown_dis(wakeup_pins[i]); 
-  // }
-  // esp_sleep_enable_ext1_wakeup_io(bitmask, ESP_EXT1_WAKEUP_ANY_LOW);
-
-  
-  
-  //ESPNOW setup
-  // Set device as a Wi-Fi Station
   WiFi.mode(WIFI_STA);
-  // esp_wifi_set_protocol( WIFI_IF_STA , WIFI_PROTOCOL_LR);
-
 
   // Init ESP-NOW
   if (esp_now_init() != ESP_OK) {
@@ -197,10 +178,65 @@ void setup() {
     Serial.println("Failed to add peer");
     return;
   }
-  
+  print_wakeup_reason();
+
+
+  //deep sleep wake
+  ++bootCount;
+  Serial.println("Boot number: " + String(bootCount));
+  // Print the wakeup reason for ESP32
+  print_wakeup_reason();
+
+  //If you were to use ext1, you would use it like
+  uint64_t bitmask = 0;
+  for(int i = 0; i < sizeof(wakeup_pins) / sizeof(wakeup_pins[0]); i++){
+    bitmask = bitmask | BUTTON_PIN_BITMASK(wakeup_pins[i]);
+    rtc_gpio_pullup_en(wakeup_pins[i]); 
+    rtc_gpio_pulldown_dis(wakeup_pins[i]); 
+  }
+  esp_sleep_enable_ext1_wakeup_io(bitmask, ESP_EXT1_WAKEUP_ANY_LOW);
+
+
   lastEventTime = millis();
   lastSentTime = millis();
-  
+  // bool isPaired = false;
+  // do{
+  //   ScanForSlave();
+  //   // If Slave is found, it would be populate in `slave` variable
+  //   // We will check if `slave` is defined and then we proceed further
+  //   if(slave.channel == CHANNEL){
+  //     isPaired = manageSlave();
+  //   }
+  //   Serial.println("Searching...");
+  //   delay(50);
+  // }while(!isPaired);
+}
+
+void print_wakeup_reason() {
+  esp_sleep_wakeup_cause_t wakeup_reason;
+
+  wakeup_reason = esp_sleep_get_wakeup_cause();
+
+  // switch (wakeup_reason) {
+  //   case ESP_SLEEP_WAKEUP_EXT0:
+  //     Serial.println("Wakeup caused by external signal using RTC_IO");
+  //     break;
+  //   case ESP_SLEEP_WAKEUP_EXT1:
+  //     Serial.println("Wakeup caused by external signal using RTC_CNTL");
+  //     break;
+  //   case ESP_SLEEP_WAKEUP_TIMER:
+  //     Serial.println("Wakeup caused by timer");
+  //     break;
+  //   case ESP_SLEEP_WAKEUP_TOUCHPAD:
+  //     Serial.println("Wakeup caused by touchpad");
+  //     break;
+  //   case ESP_SLEEP_WAKEUP_ULP:
+  //     Serial.println("Wakeup caused by ULP program");
+  //     break;
+  //   default:
+  //     Serial.printf("Wakeup was not caused by deep sleep: %d\n", wakeup_reason);
+  //     break;
+  // }
 }
 
 void batteryMonitor() {
@@ -209,7 +245,7 @@ void batteryMonitor() {
   float batteryOffset = 290;  //calibrate later (detect ticks at 4.2V)
   float ticksToVoltage = 4.2 / batteryOffset;
 
-  outgoingMessage.remoteBatteryVoltage = 0;  //analogRead(BAT_MONITOR_PIN) * ticksToVoltage;
+  outgoingMessage.remoteBatteryVoltage = 0; //analogRead(BAT_MONITOR_PIN) * ticksToVoltage;
 }
 
 int speedLevel = 0;  // -3 to 9 speed level, with [INSERT SOMETHING] being freespinning wheel (CODE THIS IN)
@@ -220,46 +256,49 @@ void loop() {
 
   //make sure it connects back when it disconnects
 
+  // 600 max? thus actual speed will be 9 * 65 = 585 RPM ~~ 20 kph
+  // turn speed can be like 100?
   batteryMonitor();
 
   // Serial.print("Forward: ");
-  // Serial.print(outgoingMessage.forward_speed);
+  // Serial.print(forwardSpeed);
   // Serial.print("  Steer: ");
-  // Serial.println( outgoingMessage.steer_angle);
+  // Serial.println(steerSpeed);
   // Serial.print("  Battery V: ");
   // Serial.println(batteryVoltage);
 
-
-
-  if (changed || millis() - lastSentTime > 500) {
+  if(changed || millis() - lastSentTime > 500) {
     sendData();
     lastSentTime = millis();
   }
-  if (millis() - lastEventTime > 60000 && outgoingMessage.forward_speed == 0) {
+  if(millis() - lastEventTime > 10000 && outgoingMessage.forward_speed == 0 && outgoingMessage.steer_angle == 0){
     enterDeepSleep();
+    // Serial.println("Going to sleep...");
   }
-
-  // neopixelWrite(RGB_BUILTIN, 0, 0, 0);  // Red
-
+  
+  //change later -- I think changed logic doesn't wokr properly
+  //send update every 250 ms as well to ensure connection - heartbeat
   delay(5);
+  digitalWrite(LED_BUILTIN, HIGH);
 }
 
 void enterDeepSleep() {
   //ENABLE DEEP SLEEP OF DW1000 CHIP TOO
-  // digitalWrite(RGB_BUILTIN, LOW);
-  // delay(1000);
-  // digitalWrite(RGB_BUILTIN, HIGH);
-  // delay(1000);
+  for(int i = 0; i < 50; i++){
+    digitalWrite(LED_BUILTIN, LOW);
+    delay(10);
+    digitalWrite(LED_BUILTIN, HIGH);
+    delay(10);
+  }
 
-  // neopixelWrite(RGB_BUILTIN, 0, 0, 0);  // Off / black;
-  // esp_deep_sleep_start();
+  esp_deep_sleep_start();
 }
 
 
 bool pressed = false;
 int lastSpeedLevel;
 float lastSteerAngle;
-float increment = 0.6;
+float increment = 0.2;
 bool updateButtonPressState() {
   bool stop_pin = !digitalRead(STOP_PIN);
   bool up = !digitalRead(UP_PIN);
@@ -315,7 +354,7 @@ bool updateButtonPressState() {
   return changed;
 }
 
-bool isChangedSinceLast(int lastSpeed, int currentSpeed) {
+bool isChangedSinceLast(int lastSpeed, int currentSpeed){
   return !(lastSpeed == currentSpeed);
 }
 
@@ -327,19 +366,3 @@ int sgn(float num){
     return -1;
   return 0;
 }
-
-// void print_wakeup_reason() {
-//   esp_sleep_wakeup_cause_t wakeup_reason;
-
-//   wakeup_reason = esp_sleep_get_wakeup_cause();
-
-//   switch (wakeup_reason) {
-//     case ESP_SLEEP_WAKEUP_EXT0:     Serial.println("Wakeup caused by external signal using RTC_IO"); break;
-//     case ESP_SLEEP_WAKEUP_EXT1:     Serial.println("Wakeup caused by external signal using RTC_CNTL"); break;
-//     case ESP_SLEEP_WAKEUP_TIMER:    Serial.println("Wakeup caused by timer"); break;
-//     case ESP_SLEEP_WAKEUP_TOUCHPAD: Serial.println("Wakeup caused by touchpad"); break;
-//     case ESP_SLEEP_WAKEUP_ULP:      Serial.println("Wakeup caused by ULP program"); break;
-//     default:                        Serial.printf("Wakeup was not caused by deep sleep: %d\n", wakeup_reason); break;
-//   }
-// }
-
