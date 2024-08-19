@@ -69,7 +69,8 @@ incoming_message incomingMessage;
 
 //ESP NOW
 uint8_t espNowBroadcastAddress[] = { 0x34, 0x85, 0x18, 0xac, 0x08, 0x28 };
-
+// dc:54:75:df:1d:0c
+// 34:85:18:ac:08:28
 // Create peer interface
 esp_now_peer_info_t peerInfo;
 
@@ -237,12 +238,12 @@ void sendData() {
   const uint8_t *peer_addr = peerInfo.peer_addr;
   // Serial.print("Sending: "); Serial.println(outgoingMessage);
   esp_err_t result = esp_now_send(peer_addr, (uint8_t *)&outgoingMessage, sizeof(outgoingMessage));
-  // Serial.print(millis());
-  // Serial.print("\t");
-  // Serial.print("Send Status: ");
+  Serial.print(millis());
+  Serial.print("\t");
+  Serial.print("Send Status: ");
 
-  // Serial.println(outgoingMessage.forward_speed);
-  // Serial.println(outgoingMessage.turn_speed);
+  Serial.println(outgoingMessage.forward_speed);
+  Serial.println(outgoingMessage.turn_speed);
   if (result == ESP_OK) {
     // Serial.println("Success");
   } else if (result == ESP_ERR_ESPNOW_NOT_INIT) {
@@ -310,11 +311,11 @@ void setup() {
     Serial.println("Failed to add peer");
     return;
   }
-  print_wakeup_reason();
+  // print_wakeup_reason();
 
  
-  esp_deep_sleep_enable_gpio_wakeup(1 << STOP_PIN | 1 << UP_PIN,
-                                    ESP_GPIO_WAKEUP_GPIO_LOW);
+  // esp_deep_sleep_enable_gpio_wakeup(1 << STOP_PIN | 1 << UP_PIN,
+  //                                   ESP_GPIO_WAKEUP_GPIO_LOW);
 
   lastEventTime = millis();
   lastSentTime = millis();
@@ -392,10 +393,11 @@ void loop() {
     sendData();
     lastSentTime = millis();
   }
-  if(millis() - lastEventTime > 60000 && outgoingMessage.forward_speed == 0 && outgoingMessage.turn_speed == 0){
-    enterDeepSleep();
-    // Serial.println("Going to sleep...");
-  }
+
+  // if(millis() - lastEventTime > 60000 && outgoingMessage.forward_speed == 0 && outgoingMessage.turn_speed == 0){
+  //   enterDeepSleep();
+  //   // Serial.println("Going to sleep...");
+  // }
   
   //change later -- I think changed logic doesn't wokr properly
   //send update every 250 ms as well to ensure connection - heartbeat
@@ -403,16 +405,16 @@ void loop() {
   delay(5);
 }
 
-void enterDeepSleep(){
-  //ENABLE DEEP SLEEP OF DW1000 CHIP TOO
-  // Serial.println("Going to sleep now");
+// void enterDeepSleep(){
+//   //ENABLE DEEP SLEEP OF DW1000 CHIP TOO
+//   // Serial.println("Going to sleep now");
 
-  digitalWrite((gpio_num_t) STOP_PIN, HIGH);
-  // gpio_hold_en((gpio_num_t) STOP_PIN);
-  digitalWrite((gpio_num_t) UP_PIN, HIGH);
-  // gpio_hold_en((gpio_num_t) UP_PIN);
-  esp_deep_sleep_start();
-}
+//   digitalWrite((gpio_num_t) STOP_PIN, HIGH);
+//   // gpio_hold_en((gpio_num_t) STOP_PIN);
+//   digitalWrite((gpio_num_t) UP_PIN, HIGH);
+//   // gpio_hold_en((gpio_num_t) UP_PIN);
+//   esp_deep_sleep_start();
+// }
 
 
 bool pressed = false;

@@ -12,32 +12,8 @@ Pins 0 to 5 can be used to wake it from deep sleep
 - mac address hardcode
 - pairing mode 
 - optimize sleep states to save energy during operation 
-- only send when there's a change in the state
-- regular handshake to confirm connection & stop vehicle if disconnected 
 - update voltage method
-- maybe research other wifi modes of esp to increase range
-- check sum on the receiver end
-*/
-/*
 
-<< This Device Master >>
-Flow: Master
-Step 1 : ESPNow Init on Master and set it in STA mode
-Step 2 : Start scanning for Slave ESP32 (we have added a prefix of `slave` to the SSID of slave for an easy setup)
-Step 3 : Once found, add Slave as peer
-Step 4 : Register for send callback
-Step 5 : Start Transmitting data from Master to Slave
-
-Flow: Slave
-Step 1 : ESPNow Init on Slave
-Step 2 : Update the SSID of Slave with a prefix of `slave`
-Step 3 : Set Slave in AP mode
-Step 4 : Register for receive callback and wait for data
-Step 5 : Once data arrives, print it in the serial monitor
-
-Note: Master and Slave have been defined to easily understand the setup.
-Based on the ESPNOW API, there is no concept of Master and Slave.
-Any devices can act as master or slave.
 */
 
 #define UP_PIN D0
@@ -45,12 +21,10 @@ Any devices can act as master or slave.
 #define LEFT_PIN D2
 #define RIGHT_PIN D5
 #define DOWN_PIN D4
-
 // #define BAT_MONITOR_PIN A2
 
 //deep sleep
 #define BUTTON_PIN_BITMASK(GPIO) (1ULL << GPIO)  // 2 ^ GPIO_NUMBER in hex
-// gpio_num_t wakeup_pins[] = {GPIO_NUM_8, GPIO_NUM_9, GPIO_NUM_10, GPIO_NUM_11, GPIO_NUM_12};
 gpio_num_t wakeup_pins[] = {gpio_num_t(UP_PIN), gpio_num_t(STOP_PIN), gpio_num_t(LEFT_PIN), gpio_num_t(RIGHT_PIN), gpio_num_t(DOWN_PIN)};
 RTC_DATA_ATTR int bootCount = 0;
 
@@ -100,9 +74,7 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
 void InitESPNow() {
   WiFi.disconnect();
   if (esp_now_init() == ESP_OK) {
-    // Serial.println("ESPNow Init Success");
   } else {
-    // Serial.println("ESPNow Init Failed");
     delay(500);
     ESP.restart();
   }
@@ -284,11 +256,11 @@ void loop() {
 
 void enterDeepSleep() {
   //ENABLE DEEP SLEEP OF DW1000 CHIP TOO
-  for(int i = 0; i < 50; i++){
+  for(int i = 0; i < 5; i++){
     digitalWrite(LED_BUILTIN, LOW);
-    delay(10);
+    delay(100);
     digitalWrite(LED_BUILTIN, HIGH);
-    delay(10);
+    delay(100);
   }
 
   esp_deep_sleep_start();
@@ -311,10 +283,8 @@ bool updateButtonPressState() {
     pressed = true;
     speedLevel = 0;
     steerAngle = 0;
-    //hold this button down to enable free-spinning wheels
-    // Serial.println("STOP");
   } else if (up && !pressed) {
-    pressed = true;
+    pressed = true; 
     if (speedLevel == 0) speedLevel = 4;
     else speedLevel = min(50, speedLevel + 1);
   } else if (down && !pressed) {
@@ -357,7 +327,6 @@ bool updateButtonPressState() {
 bool isChangedSinceLast(int lastSpeed, int currentSpeed){
   return !(lastSpeed == currentSpeed);
 }
-
 
 int sgn(float num){
   if(num > 0.0) 
