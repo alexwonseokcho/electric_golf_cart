@@ -19,13 +19,21 @@
 #include <DW1000NgRanging.hpp>
 #include <DW1000NgRTLS.hpp>
 
-const uint8_t PIN_RST = 5; // reset pin
-const uint8_t PIN_IRQ = 6; // irq pin
-const uint8_t PIN_SS = 1; // spi select pin
+// C3 SUPERMINI pins
+const uint8_t PIN_RST = 20; // reset pin
+const uint8_t PIN_IRQ = 21; // irq pin
+const uint8_t PIN_SS = 7; // spi select pin
 
-const uint8_t PIN_MOSI = 4;
-const uint8_t PIN_MISO = 3;
-const uint8_t PIN_CLK = 2;
+const uint8_t PIN_MOSI = 10;
+const uint8_t PIN_MISO = 9;
+const uint8_t PIN_CLK = 8;
+// const uint8_t PIN_RST = 5; // reset pin
+// const uint8_t PIN_IRQ = 6; // irq pin
+// const uint8_t PIN_SS = 1; // spi select pin
+
+// const uint8_t PIN_MOSI = 4;
+// const uint8_t PIN_MISO = 3;
+// const uint8_t PIN_CLK = 2;
 
 
 // Extended Unique Identifier register. 64-bit device identifier. Register file: 0x01
@@ -71,7 +79,9 @@ sleep_configuration_t SLEEP_CONFIG = {
 
 void setup() {
     // DEBUG monitoring
+    delay(50);
     Serial.begin(115200);
+    Serial.println("dlskjflsdf'");
     Serial.println(F("### DW1000Ng-arduino-ranging-tag ###"));
     // initialize the driver
     SPI.begin(PIN_CLK, PIN_MISO, PIN_MOSI, PIN_SS);

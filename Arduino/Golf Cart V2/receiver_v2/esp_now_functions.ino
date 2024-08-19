@@ -40,6 +40,7 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *data, int data_len) {
   if(data_len == 6){ //this is a remote controller packet
     remoteLastRecvTime = millis();
     memcpy(&incomingMessage, data, sizeof(incomingMessage));
+    // Serial.println("")
   }
   else if(data_len == 8){ //this is a anchor packet
     memcpy(&incomingAnchorMessage, data, sizeof(incomingAnchorMessage));
@@ -56,6 +57,9 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *data, int data_len) {
     // Serial.printf("anc2: %f \t", ancReading.anc2);
     // Serial.printf("anc3: %f \n", ancReading.anc3);
     // Serial.println();
+    Serial.println(incomingMessage.forward_speed);
+
+    Serial.println(incomingMessage.turn_speed);
   }
 
 
@@ -98,7 +102,7 @@ void espNowSetup(){
   
   // Once ESPNow is successfully Init, we will register for recv CB to
   // get recv packer info
-  esp_now_register_recv_cb(OnDataRecv);
+  esp_now_register_recv_cb(esp_now_recv_cb_t(OnDataRecv));
 }
 
 // // Init ESP Now with fallback

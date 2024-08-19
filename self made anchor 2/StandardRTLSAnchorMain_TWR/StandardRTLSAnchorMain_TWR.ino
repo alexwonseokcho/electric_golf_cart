@@ -241,7 +241,5 @@ void loop() {
                 received_B = false;
             }
         }
-    }
-
-    
+    }  
 }

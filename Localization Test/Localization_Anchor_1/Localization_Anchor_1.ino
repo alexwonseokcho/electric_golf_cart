@@ -14,9 +14,9 @@
  * This is an example master anchor in a RTLS using two way ranging ISO/IEC 24730-62_2013 messages
  */
 
-#include <HardwareSerial.h>
+// #include <HardwareSerial.h>
 
-HardwareSerial SendSerial(1);
+// HardwareSerial SendSerial(1);
 
 
 
@@ -33,13 +33,13 @@ typedef struct Position {
     double y;
 } Position;
 
-const uint8_t PIN_RST = D6; // reset pin
-const uint8_t PIN_IRQ = D4; // irq pin
-const uint8_t PIN_SS = D5; // spi select pin
+const uint8_t PIN_RST = 20; // reset pin
+const uint8_t PIN_IRQ = 21; // irq pin
+const uint8_t PIN_SS = 7; // spi select pin
 
-const uint8_t PIN_MOSI = D10;
-const uint8_t PIN_MISO = D9;
-const uint8_t PIN_CLK = D8;
+const uint8_t PIN_MOSI = 10;
+const uint8_t PIN_MISO = 9;
+const uint8_t PIN_CLK = 8;
 
 // Extended Unique Identifier register. 64-bit device identifier. Register file: 0x01
 const char EUI[] = "AA:BB:CC:DD:EE:FF:00:01";
@@ -109,10 +109,15 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
 
 void setup() {
     // DEBUG monitoring
-    Serial.begin(115200);
+    delay(50);
+    Serial.begin(9600);
+    Serial.println("dlskjflsdf'"); 
+    Serial.println("dlskjflsdf'"); 
+    Serial.println("dlskjflsdf'"); 
+    Serial.println("dlskjflsdf'"); 
     Serial.println(F("### DW1000Ng-arduino-ranging-anchorMain ###"));
 
-    SendSerial.begin(9600, SERIAL_8N1, -1, D3);
+    // SendSerial.begin(9600, SERIAL_8N1, -1, D3);
 
     
     SPI.begin(PIN_CLK, PIN_MISO, PIN_MOSI, PIN_SS);
@@ -195,6 +200,11 @@ void calculatePosition(double &x, double &y) {
 
 
 void loop() {
+
+  // Serial.println("dlskjflsdf'"); 
+  // Serial.println("dlskjflsdf'"); 
+  // Serial.println("dlskjflsdf'"); 
+  // Serial.println("dlskjflsdf'"); 
   if(DW1000NgRTLS::receiveFrame()){
     size_t recv_len = DW1000Ng::getReceivedDataLength();
     byte recv_data[recv_len];
@@ -214,9 +224,9 @@ void loop() {
           esp_err_t espNowResult = esp_now_send(espNowBroadcastAddress, (uint8_t *) &anchorDistancePacket, sizeof(anchorDistancePacket));
           // Serial.println(anchorDistancePacket.distance);
           
-          // String rangeString = "Range: "; rangeString += range_self; rangeString += " m";
-          // rangeString += "\t RX power: "; rangeString += DW1000Ng::getReceivePower(); rangeString += " dBm";
-          // Serial.println(rangeString);
+          String rangeString = "Range: "; rangeString += range_self; rangeString += " m";
+          rangeString += "\t RX power: "; rangeString += DW1000Ng::getReceivePower(); rangeString += " dBm";
+          Serial.println(rangeString);
       }
 
     }
@@ -226,7 +236,7 @@ void loop() {
 
   // Send message via ESP-NOW
   esp_err_t espNowResult = esp_now_send(espNowBroadcastAddress, (uint8_t *) &anchorDistancePacket, sizeof(anchorDistancePacket));
-  // Serial.println(anchorDistancePacket.distance);
+  Serial.println(anchorDistancePacket.distance);
   
   yield();
 }

@@ -2,14 +2,14 @@
 #include <esp_wifi.h>
 #include <WiFi.h>
 
-#define brakePin 10
-#define reversePin 11
-#define drivePin 12
-#define steerServoPin 6
-// #define brakePin D7
-// #define reversePin D8
-// #define drivePin D9
-// #define steerServoPin D6
+// #define brakePin 10
+// #define reversePin 11
+// #define drivePin 12
+// #define steerServoPin 6
+#define brakePin D7
+#define reversePin D8
+#define drivePin D9
+#define steerServoPin D6
 
 typedef struct incoming_message{
   int16_t forwardSpeed;
@@ -62,16 +62,16 @@ float appliedSpeed = 0;
 float speedIncrement = 0.25;
 float steerIncrement = 0.25;
 int steerDeadzone = 45;
-int zeroSteerOffset = 6; //offset 
+int zeroSteerOffset = -3; //offset 
 float servoAngle = 135 + zeroSteerOffset;
 void loop() {
 
   float requestedServoAngle = map(-incomingMessage.steeringAngle, -135, 135, steerDeadzone + zeroSteerOffset, 270 - steerDeadzone + zeroSteerOffset);
   int requestedSpeed = incomingMessage.forwardSpeed;
 
-  if(abs(-incomingMessage.steeringAngle + zeroSteerOffset) > 15){
-    requestedSpeed = smallSteerSpeedLimit; //slow down when turning
-  }
+  // if(abs(-incomingMessage.steeringAngle + zeroSteerOffset) > 15){
+  //   requestedSpeed = smallSteerSpeedLimit; //slow down when turning
+  // }
 
   if(millis() - remoteLastRecvTime > 2000){
     requestedSpeed = 0;
@@ -85,12 +85,12 @@ void loop() {
   if(abs(appliedSpeed) > 255) //CAP SPEED 
     appliedSpeed = sgn(appliedSpeed) * 255;
 
-  if(abs(-incomingMessage.steeringAngle + zeroSteerOffset) < 15 || appliedSpeed <= smallSteerSpeedLimit + 0.01){
+  // if(abs(-incomingMessage.steeringAngle + zeroSteerOffset) < 15){
     if(requestedServoAngle > servoAngle)
       servoAngle = min(requestedServoAngle, servoAngle + steerIncrement);
     else if(requestedServoAngle < servoAngle)
       servoAngle = max(requestedServoAngle, servoAngle - steerIncrement);
-  }
+  // }
 
   // if(appliedSpeed > smallSteerSpeedLimit)
   //   servoAngle = sgn(servoAngle) * max(fabs(servoAngle), float(15.0));

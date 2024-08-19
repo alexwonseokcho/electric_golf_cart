@@ -82,7 +82,7 @@ void loop(void)
 
 
 
-  // Serial.println("forward: " + (String) forward + " turn: " + (String) incomingMessage.turn_speed);
+  Serial.println("forward: " + (String) forward + " turn: " + (String) incomingMessage.turn_speed);
 
   
   // processAnchorDistance();
