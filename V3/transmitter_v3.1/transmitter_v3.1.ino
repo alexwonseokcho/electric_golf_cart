@@ -41,7 +41,8 @@ bool ack = false; //command send acknowledge
 int lastEventTime; int lastSentTime;
 
 //ESP NOW
-uint8_t espNowBroadcastAddress[] = { 0xdc, 0x54, 0x75, 0xdf, 0x1d, 0x0c };
+uint8_t espNowBroadcastAddress[] = { 0x80, 0x65, 0x99, 0x88, 0x2d, 0x68 };
+// 80:65:99:88:2d:68
 // dc:54:75:df:1d:0c
 // Create peer interface
 esp_now_peer_info_t peerInfo; 
@@ -55,6 +56,7 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
 void OnDataRecv(const esp_now_recv_info* info, const unsigned char *incomingData, int len) {
   packet recvd_packet;
   memcpy(&recvd_packet, incomingData, sizeof(recvd_packet));
+  // Serial.println("recv turn: " + String(recvd_packet.turn) + " cur turn: " + String(cur_state.turn) + " rec for: " + String(recvd_packet.forward_speed) + " cur for: " + String(cur_state.forward_speed));
   if(recvd_packet.turn == cur_state.turn && recvd_packet.forward_speed == cur_state.forward_speed){
     ack = true;
   }
@@ -210,12 +212,15 @@ void loop() {
   
   delay(5);
   digitalWrite(LED_BUILTIN, HIGH);
+  // Serial.println("ack: " + String(ack) + " for: " + String(cur_state.forward_speed) + " turn: " + String(cur_state.turn));
+
   changed = updateButtonPressState();
 }
 
 
 void enterDeepSleep(int wakeupTime) {
 
+  // Serial.println("Going to sleep with wakeup time " + String(wakeupTime));
   if(wakeupTime == 0){
     esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TIMER); //disable light sleep timer
   }
