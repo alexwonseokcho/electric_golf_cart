@@ -92,10 +92,11 @@ frame_filtering_configuration_t ANCHOR_FRAME_FILTER_CONFIG = {
 };
 
 //ESP NOW
-uint8_t espNowBroadcastAddress[] = {0xcc, 0x8d, 0xa2, 0x0c, 0x51, 0x60};
-// cc:8d:a2:0c:51:60
+//uint8_t espNowBroadcastAddress[] = { 0x80, 0x65, 0x99, 0x88, 0x2d, 0x68 }; //For the real cart 
+uint8_t espNowBroadcastAddress[] = { 0xd8, 0x3b, 0xda, 0x13, 0x09, 0x80 }; //for the bridge
+
 typedef struct anchorDistance {
-  int id = 1; //anchor 1
+  uint8_t id = 1; //anchor 1
   float distance;
 } anchorDistance;
 
@@ -206,7 +207,7 @@ void loop() {
             RangeAcceptResult result = DW1000NgRTLS::anchorRangeAccept(NextActivity::RANGING_CONFIRM, next_anchor);
             if(!result.success) return;
             range_self = lowpassFilter.filter(result.range);
-            float newWeight = 0.013;
+            float newWeight = 0.5;
             if(avgDistance == -1) avgDistance = range_self;
             else avgDistance = avgDistance * (1.0 - newWeight) + range_self * newWeight;
             // range_self = result.range;
